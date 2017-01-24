@@ -44,7 +44,7 @@ func ExampleBJ4_SetScheduledTask_repeated() {
 
 	sch.SetScheduledTask("hello", func(task *Task) (result string, nextUpdate time.Time, err error) {
 		counter++
-		fmt.Println("counter: ", counter)
+		fmt.Println("counter:", counter)
 		result = "done"
 		nextUpdate = time.Now().Add(2 * time.Second)
 		return
