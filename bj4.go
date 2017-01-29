@@ -4,7 +4,7 @@ package bj4
 import "time"
 
 const (
-	waitTime = 1 * time.Second
+	minWaitTime = 1 * time.Hour
 )
 
 // Config configures the scheduler
@@ -52,6 +52,7 @@ func (bj4 *BJ4) run() {
 
 func (bj4 *BJ4) wait() {
 	for {
+		waitTime := bj4.getWaitTime()
 		timeout := make(chan bool, 1)
 		go func() {
 			time.Sleep(waitTime)
@@ -68,6 +69,19 @@ func (bj4 *BJ4) wait() {
 
 func (bj4 *BJ4) enqueueTask(task *Task) {
 	bj4.tasks[task.Name] = task
+}
+
+func (bj4 *BJ4) getWaitTime() time.Duration {
+	wt := minWaitTime
+	now := time.Now()
+	for _, task := range bj4.tasks {
+		t := task.NextUpdate.Sub(now)
+		if wt > t {
+			wt = t
+		}
+	}
+
+	return wt
 }
 
 // SetTask runs the task on the scheduler as soon as possible
