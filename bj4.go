@@ -13,14 +13,17 @@ type Config struct {
 	// If basic logging is needed, use BuiltinLogger, or if you want
 	// fancier one, LogrusLogger.
 	Logger Logger
+	// MinWaitTime is the minimum wait time for scheduler.
+	MinWaitTime time.Duration
 }
 
 // BJ4 is the scheduler struct itself. Refer to its member functions for
 // details.
 type BJ4 struct {
-	tasks     map[string]*Task
-	taskAdded chan *Task
-	logger    Logger
+	tasks       map[string]*Task
+	taskAdded   chan *Task
+	logger      Logger
+	minWaitTime time.Duration
 }
 
 // New initiates the scheduler
@@ -28,10 +31,14 @@ func New(config *Config) *BJ4 {
 	if config.Logger == nil {
 		config.Logger = &NilLogger{}
 	}
+	if config.MinWaitTime == 0 {
+		config.MinWaitTime = minWaitTime
+	}
 	return &BJ4{
-		tasks:     make(map[string]*Task),
-		taskAdded: make(chan *Task, 16),
-		logger:    config.Logger,
+		tasks:       make(map[string]*Task),
+		taskAdded:   make(chan *Task, 16),
+		logger:      config.Logger,
+		minWaitTime: config.MinWaitTime,
 	}
 }
 
@@ -72,7 +79,7 @@ func (bj4 *BJ4) enqueueTask(task *Task) {
 }
 
 func (bj4 *BJ4) getWaitTime() time.Duration {
-	wt := minWaitTime
+	wt := bj4.minWaitTime
 	now := time.Now()
 	for _, task := range bj4.tasks {
 		t := task.NextUpdate.Sub(now)
