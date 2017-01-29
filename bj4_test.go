@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+func approxDuration(expected, actual time.Duration) bool {
+	return actual < expected+1*time.Millisecond &&
+		actual > expected-1*time.Millisecond
+}
+
 func ExampleBJ4_SetTask() {
 	sch := New(&Config{})
 
@@ -71,16 +76,46 @@ func TestBJ4(t *testing.T) {
 	sch.SetScheduledTask("1", func(task *Task) (result string, nextUpdate time.Time, err error) {
 		seq = append(seq, 1)
 		return
-	}, time.Now().Add(3*time.Second))
+	}, time.Now().Add(200*time.Millisecond))
 
 	sch.SetScheduledTask("2", func(task *Task) (result string, nextUpdate time.Time, err error) {
 		seq = append(seq, 2)
 		return
-	}, time.Now().Add(2*time.Second))
+	}, time.Now().Add(100*time.Millisecond))
 
-	time.Sleep(4 * time.Second)
+	time.Sleep(500 * time.Millisecond)
 
 	if !reflect.DeepEqual(seq, []int64{2, 1}) {
 		t.Error("wrong sequence:", seq)
+	}
+}
+
+func TestMinWaitTime(t *testing.T) {
+	wt := 500 * time.Millisecond
+	sch := New(&Config{MinWaitTime: wt})
+	s := time.Now()
+	sch.wait()
+	d := time.Now().Sub(s)
+
+	if !approxDuration(wt, d) {
+		t.Error("wrong duration. expected:", wt, ", actual:", d)
+	}
+}
+
+func TestWait(t *testing.T) {
+	wt := 1000 * time.Millisecond
+	tt := 500 * time.Millisecond
+	sch := New(&Config{MinWaitTime: wt})
+
+	sch.SetScheduledTask("1", func(task *Task) (result string, nextUpdate time.Time, err error) {
+		return
+	}, time.Now().Add(tt))
+
+	s := time.Now()
+	sch.wait()
+	d := time.Now().Sub(s)
+
+	if !approxDuration(tt, d) {
+		t.Error("wrong duration. expected:", tt, ", actual:", d)
 	}
 }
