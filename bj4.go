@@ -82,6 +82,10 @@ func (bj4 *BJ4) getWaitTime() time.Duration {
 	wt := bj4.minWaitTime
 	now := time.Now()
 	for _, task := range bj4.tasks {
+		if task.NextUpdate.IsZero() {
+			continue
+		}
+
 		t := task.NextUpdate.Sub(now)
 		if wt > t {
 			wt = t
