@@ -1,8 +1,8 @@
 package bj4
 
-import log "github.com/Sirupsen/logrus"
+import log "github.com/sirupsen/logrus"
 
-// LogrusLogger implements Logger and uses Sirupsen/Logrus to log. This logger
+// LogrusLogger implements Logger and uses sirupsen/logrus to log. This logger
 // provides more verbose information than BuiltinLogger.
 type LogrusLogger struct{}
 
