@@ -6,4 +6,4 @@ owners:
 - name: Yao Wei
   email: mwei@rayark.com
 ignore:
-- github.com/sirupsen/logrus
+- logrus
