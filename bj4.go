@@ -15,6 +15,9 @@ type Config struct {
 	Logger Logger
 	// MinWaitTime is the minimum wait time for scheduler.
 	MinWaitTime time.Duration
+	// TaskTTL is the timeout when a task is not scheduled anymore.  If not
+	// set, all tasks will be kept.
+	TaskTTL time.Duration
 }
 
 // BJ4 is the scheduler struct itself. Refer to its member functions for
@@ -24,6 +27,7 @@ type BJ4 struct {
 	taskAdded   chan *Task
 	logger      Logger
 	minWaitTime time.Duration
+	taskTTL     time.Duration
 }
 
 // New initiates the scheduler
@@ -39,6 +43,7 @@ func New(config *Config) *BJ4 {
 		taskAdded:   make(chan *Task, 16),
 		logger:      config.Logger,
 		minWaitTime: config.MinWaitTime,
+		taskTTL:     config.TaskTTL,
 	}
 }
 
@@ -128,4 +133,8 @@ func (bj4 *BJ4) GetTasks() []TaskStatus {
 		idx++
 	}
 	return taskStatus
+}
+
+func (bj4 *BJ4) removeTask(name string) {
+	delete(bj4.tasks, name)
 }

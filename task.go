@@ -32,7 +32,16 @@ func (task *Task) SetStatus(status string) {
 }
 
 func (task *Task) run() {
-	if task.Disabled || time.Since(task.NextUpdate) < 0 {
+	if task.Disabled {
+		ttl := task.bj4.taskTTL
+		now := time.Now()
+		if ttl > 0 && now.Sub(task.Completed) >= ttl {
+			task.bj4.removeTask(task.Name)
+		}
+		return
+	}
+
+	if time.Since(task.NextUpdate) < 0 {
 		return
 	}
 
