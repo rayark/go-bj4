@@ -65,7 +65,7 @@ func New(config *Config) *BJ4 {
 	}
 }
 
-// Start starts the scheduler
+// Start runs the scheduler.  Returns error if the scheduler has been started.
 func (bj4 *BJ4) Start() error {
 	if bj4.state != stateStopped {
 		return ErrNotStopped
@@ -83,6 +83,8 @@ func (bj4 *BJ4) Start() error {
 	return nil
 }
 
+// Stop stops the scheduler.  Returns error if the scheduler has not been
+// started.
 func (bj4 *BJ4) Stop() error {
 	if bj4.state != stateStarted {
 		return ErrNotStarted
