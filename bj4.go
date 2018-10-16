@@ -1,7 +1,10 @@
 // Package bj4 provides one-task-at-a-time task scheduling.
 package bj4
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 const (
 	minWaitTime = 1 * time.Hour
@@ -23,12 +26,25 @@ type Config struct {
 // BJ4 is the scheduler struct itself. Refer to its member functions for
 // details.
 type BJ4 struct {
+	state       string
 	tasks       map[string]*Task
 	taskAdded   chan *Task
 	logger      Logger
 	minWaitTime time.Duration
 	taskTTL     time.Duration
+	stopChan    chan struct{}
 }
+
+const (
+	stateStopped  = "stopped"
+	stateStarted  = "started"
+	stateStopping = "stopping"
+)
+
+var (
+	ErrNotStopped = errors.New("bj4 has not stopped")
+	ErrNotStarted = errors.New("bj4 has not started")
+)
 
 // New initiates the scheduler
 func New(config *Config) *BJ4 {
@@ -39,21 +55,40 @@ func New(config *Config) *BJ4 {
 		config.MinWaitTime = minWaitTime
 	}
 	return &BJ4{
+		state:       stateStopped,
 		tasks:       make(map[string]*Task),
 		taskAdded:   make(chan *Task, 16),
 		logger:      config.Logger,
 		minWaitTime: config.MinWaitTime,
 		taskTTL:     config.TaskTTL,
+		stopChan:    make(chan struct{}),
 	}
 }
 
 // Start starts the scheduler
-func (bj4 *BJ4) Start() {
+func (bj4 *BJ4) Start() error {
+	if bj4.state != stateStopped {
+		return ErrNotStopped
+	}
+	bj4.state = stateStarted
 	bj4.logger.OnStart()
 	for {
 		bj4.run()
-		bj4.wait()
+		stop := bj4.wait()
+		if stop {
+			break
+		}
 	}
+	bj4.state = stateStopped
+	return nil
+}
+
+func (bj4 *BJ4) Stop() error {
+	if bj4.state != stateStarted {
+		return ErrNotStarted
+	}
+	close(bj4.stopChan)
+	return nil
 }
 
 func (bj4 *BJ4) run() {
@@ -62,20 +97,23 @@ func (bj4 *BJ4) run() {
 	}
 }
 
-func (bj4 *BJ4) wait() {
+func (bj4 *BJ4) wait() bool {
+	t := time.NewTimer(bj4.getWaitTime())
 	for {
-		waitTime := bj4.getWaitTime()
-		timeout := make(chan bool, 1)
-		go func() {
-			time.Sleep(waitTime)
-			timeout <- true
-		}()
 		select {
 		case task := <-bj4.taskAdded:
 			bj4.enqueueTask(task)
-		case <-timeout:
-			return
+		case <-t.C:
+			return false
+		case <-bj4.stopChan:
+			return true
 		}
+
+		active := t.Stop()
+		if !active {
+			return false
+		}
+		t.Reset(bj4.getWaitTime())
 	}
 }
 
