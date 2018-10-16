@@ -145,3 +145,28 @@ func TestStop(t *testing.T) {
 		t.Error("wrong sequence:", seq)
 	}
 }
+
+func TestRemove(t *testing.T) {
+	var seq []int64
+
+	sch := New(&Config{})
+	go sch.Start()
+
+	sch.SetScheduledTask("1", func(task *Task) (result string, nextUpdate time.Time, err error) {
+		seq = append(seq, 1)
+		return
+	}, time.Now().Add(300*time.Millisecond))
+
+	sch.SetScheduledTask("2", func(task *Task) (result string, nextUpdate time.Time, err error) {
+		seq = append(seq, 2)
+		return
+	}, time.Now().Add(100*time.Millisecond))
+
+	sch.RemoveTask("1")
+
+	time.Sleep(500 * time.Millisecond)
+
+	if !reflect.DeepEqual(seq, []int64{2}) {
+		t.Error("wrong sequence:", seq)
+	}
+}

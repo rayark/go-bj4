@@ -26,13 +26,14 @@ type Config struct {
 // BJ4 is the scheduler struct itself. Refer to its member functions for
 // details.
 type BJ4 struct {
-	state       string
-	tasks       map[string]*Task
-	taskAdded   chan *Task
-	logger      Logger
-	minWaitTime time.Duration
-	taskTTL     time.Duration
-	stopChan    chan struct{}
+	state          string
+	tasks          map[string]*Task
+	taskAdded      chan *Task
+	logger         Logger
+	minWaitTime    time.Duration
+	taskTTL        time.Duration
+	stopChan       chan struct{}
+	removeTaskChan chan string
 }
 
 const (
@@ -55,13 +56,14 @@ func New(config *Config) *BJ4 {
 		config.MinWaitTime = minWaitTime
 	}
 	return &BJ4{
-		state:       stateStopped,
-		tasks:       make(map[string]*Task),
-		taskAdded:   make(chan *Task, 16),
-		logger:      config.Logger,
-		minWaitTime: config.MinWaitTime,
-		taskTTL:     config.TaskTTL,
-		stopChan:    make(chan struct{}),
+		state:          stateStopped,
+		tasks:          make(map[string]*Task),
+		taskAdded:      make(chan *Task, 16),
+		logger:         config.Logger,
+		minWaitTime:    config.MinWaitTime,
+		taskTTL:        config.TaskTTL,
+		stopChan:       make(chan struct{}),
+		removeTaskChan: make(chan string, 16),
 	}
 }
 
@@ -109,6 +111,8 @@ func (bj4 *BJ4) wait() bool {
 			return false
 		case <-bj4.stopChan:
 			return true
+		case name := <-bj4.removeTaskChan:
+			bj4.removeTask(name)
 		}
 
 		active := t.Stop()
@@ -173,6 +177,11 @@ func (bj4 *BJ4) GetTasks() []TaskStatus {
 		idx++
 	}
 	return taskStatus
+}
+
+// RemoveTask removes a task from the scheduler
+func (bj4 *BJ4) RemoveTask(name string) {
+	bj4.removeTaskChan <- name
 }
 
 func (bj4 *BJ4) removeTask(name string) {
