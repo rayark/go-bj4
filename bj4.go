@@ -56,12 +56,13 @@ func New(config *Config) *BJ4 {
 		config.MinWaitTime = minWaitTime
 	}
 	return &BJ4{
-		state:          stateStopped,
-		tasks:          make(map[string]*Task),
-		taskAdded:      make(chan *Task, 16),
-		logger:         config.Logger,
-		minWaitTime:    config.MinWaitTime,
-		taskTTL:        config.TaskTTL,
+		state:       stateStopped,
+		tasks:       make(map[string]*Task),
+		taskAdded:   make(chan *Task, 16),
+		logger:      config.Logger,
+		minWaitTime: config.MinWaitTime,
+		taskTTL:     config.TaskTTL,
+		// stopChan need to using blocking channel
 		stopChan:       make(chan struct{}),
 		removeTaskChan: make(chan string, 16),
 	}
@@ -91,7 +92,9 @@ func (bj4 *BJ4) Stop() error {
 	if bj4.state != stateStarted {
 		return ErrNotStarted
 	}
-	close(bj4.stopChan)
+	// wait until wait() receives the stop signal
+	bj4.stopChan <- struct{}{}
+
 	return nil
 }
 

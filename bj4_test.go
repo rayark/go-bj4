@@ -3,6 +3,7 @@ package bj4
 import (
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 )
@@ -169,4 +170,35 @@ func TestRemove(t *testing.T) {
 	if !reflect.DeepEqual(seq, []int64{2}) {
 		t.Error("wrong sequence:", seq)
 	}
+}
+
+func TestStopWaitsCurrentTaskDone(t *testing.T) {
+	var count int
+	var wg sync.WaitGroup
+
+	sch := New(&Config{})
+	go sch.Start()
+
+	wg.Add(1)
+	// will fire after 400 ms
+	sch.SetScheduledTask("1", func(task *Task) (result string, nextUpdate time.Time, err error) {
+		defer wg.Done()
+		time.Sleep(time.Millisecond * 300)
+		count++
+		return
+	}, time.Now().Add(100*time.Millisecond))
+
+	wg.Add(1)
+	time.AfterFunc(200*time.Millisecond, func() {
+		defer wg.Done()
+
+		sch.Stop()
+
+		// Stop should guarantee on-going Task is done
+		if count != 1 {
+			t.Error("Stop() doesn't wait for on-going Task done")
+		}
+	})
+
+	wg.Wait()
 }
