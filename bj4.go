@@ -91,6 +91,8 @@ func (bj4 *BJ4) Stop() error {
 	if bj4.state != stateStarted {
 		return ErrNotStarted
 	}
+	// make sure no task is running
+	bj4.stopChan <- struct{}{}
 	close(bj4.stopChan)
 	return nil
 }
