@@ -9,8 +9,8 @@ import (
 )
 
 func approxDuration(expected, actual time.Duration) bool {
-	return actual < expected+1*time.Millisecond &&
-		actual > expected-1*time.Millisecond
+	return actual < expected+5*time.Millisecond &&
+		actual > expected-5*time.Millisecond
 }
 
 func ExampleBJ4_SetTask() {
