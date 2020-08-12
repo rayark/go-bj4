@@ -1,3 +1,32 @@
+/* Copyright (c) 2017, Rayark Inc.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * * Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ *
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ *
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 // Package bj4 provides one-task-at-a-time task scheduling.
 package bj4
 
@@ -62,7 +91,7 @@ func New(config *Config) *BJ4 {
 		logger:         config.Logger,
 		minWaitTime:    config.MinWaitTime,
 		taskTTL:        config.TaskTTL,
-		stopChan:       make(chan struct{}),
+		stopChan:       make(chan struct{}), // stopChan must be unbuffered channel, or (*BJ4).Stop() won't wait until bj4 runner stopped
 		removeTaskChan: make(chan string, 16),
 	}
 }
@@ -91,7 +120,9 @@ func (bj4 *BJ4) Stop() error {
 	if bj4.state != stateStarted {
 		return ErrNotStarted
 	}
-	close(bj4.stopChan)
+	// block until wait() receives the stop signal
+	bj4.stopChan <- struct{}{}
+
 	return nil
 }
 
