@@ -1,7 +1,0 @@
-package: github.com/rayark/go-bj4
-license: BSD3
-owners:
-- name: Rayark Inc.
-  website: https://www.rayark.com
-- name: Yao Wei
-  email: mwei@rayark.com
