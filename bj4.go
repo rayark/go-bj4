@@ -206,6 +206,8 @@ func (bj4 *BJ4) SetScheduledTask(name string, fn TaskFunction, nextUpdate time.T
 		bj4:       bj4,
 		errorChan: make(chan error, 1),
 	}
+	task.lock.Lock()
+	defer task.lock.Unlock()
 	bj4.taskAdded <- task
 
 	bj4.logger.OnTaskAdded(task)
