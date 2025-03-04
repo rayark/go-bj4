@@ -32,6 +32,7 @@ package bj4
 
 import (
 	"errors"
+	"sync"
 	"time"
 )
 
@@ -56,6 +57,7 @@ type Config struct {
 // details.
 type BJ4 struct {
 	state          string
+	stateLock      sync.Mutex
 	tasks          map[string]*Task
 	taskAdded      chan *Task
 	logger         Logger
@@ -98,10 +100,10 @@ func New(config *Config) *BJ4 {
 
 // Start runs the scheduler.  Returns error if the scheduler has been started.
 func (bj4 *BJ4) Start() error {
-	if bj4.state != stateStopped {
+	if bj4.getState() != stateStopped {
 		return ErrNotStopped
 	}
-	bj4.state = stateStarted
+	bj4.setState(stateStarted)
 	bj4.logger.OnStart()
 	for {
 		bj4.run()
@@ -110,20 +112,32 @@ func (bj4 *BJ4) Start() error {
 			break
 		}
 	}
-	bj4.state = stateStopped
+	bj4.setState(stateStopped)
 	return nil
 }
 
 // Stop stops the scheduler.  Returns error if the scheduler has not been
 // started.
 func (bj4 *BJ4) Stop() error {
-	if bj4.state != stateStarted {
+	if bj4.getState() != stateStarted {
 		return ErrNotStarted
 	}
 	// block until wait() receives the stop signal
 	bj4.stopChan <- struct{}{}
 
 	return nil
+}
+
+func (bj4 *BJ4) setState(state string) {
+	bj4.stateLock.Lock()
+	defer bj4.stateLock.Unlock()
+	bj4.state = state
+}
+
+func (bj4 *BJ4) getState() string {
+	bj4.stateLock.Lock()
+	defer bj4.stateLock.Unlock()
+	return bj4.state
 }
 
 func (bj4 *BJ4) run() {
