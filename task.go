@@ -58,8 +58,6 @@ type TaskFunction func(task *Task) (result string, nextUpdate time.Time, err err
 
 // SetStatus sets the status of the running task.
 func (task *Task) SetStatus(status string) {
-	task.lock.Lock()
-	defer task.lock.Unlock()
 	task.Status = status
 	task.bj4.logger.OnTaskStatusUpdate(task)
 }
