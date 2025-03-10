@@ -59,6 +59,7 @@ type BJ4 struct {
 	state          string
 	stateLock      sync.Mutex
 	tasks          map[string]*Task
+	tasksLock      sync.RWMutex
 	taskAdded      chan *Task
 	logger         Logger
 	minWaitTime    time.Duration
@@ -169,6 +170,8 @@ func (bj4 *BJ4) wait() bool {
 }
 
 func (bj4 *BJ4) enqueueTask(task *Task) {
+	bj4.tasksLock.Lock()
+	defer bj4.tasksLock.Unlock()
 	bj4.tasks[task.Name] = task
 }
 
@@ -217,10 +220,12 @@ func (bj4 *BJ4) SetScheduledTask(name string, fn TaskFunction, nextUpdate time.T
 
 // GetTasks gets the tasks from the scheduler in slice format
 func (bj4 *BJ4) GetTasks() []TaskStatus {
+	bj4.tasksLock.RLock()
+	defer bj4.tasksLock.RUnlock()
 	taskStatus := make([]TaskStatus, len(bj4.tasks))
 	idx := 0
 	for _, task := range bj4.tasks {
-		taskStatus[idx] = task.TaskStatus
+		taskStatus[idx] = task.getTaskStatus()
 		idx++
 	}
 	return taskStatus
@@ -232,5 +237,7 @@ func (bj4 *BJ4) RemoveTask(name string) {
 }
 
 func (bj4 *BJ4) removeTask(name string) {
+	bj4.tasksLock.Lock()
+	defer bj4.tasksLock.Unlock()
 	delete(bj4.tasks, name)
 }

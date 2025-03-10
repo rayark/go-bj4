@@ -105,6 +105,33 @@ func TestSetScheduledTask(t *testing.T) {
 	})
 }
 
+func TestGetTasks(t *testing.T) {
+	t.Parallel()
+	sch := New(&Config{})
+	counter := 0
+
+	errChan := sch.SetScheduledTask("hello", func(task *Task) (result string, nextUpdate time.Time, err error) {
+		counter++
+		result = "done"
+		return
+	}, time.Now().Add(1*time.Second))
+
+	go sch.Start()
+
+	// wait for tasks to be enqueued
+	time.Sleep(100 * time.Millisecond)
+	tasks := sch.GetTasks()
+	if len(tasks) != 1 {
+		t.Errorf("unexpected number of pending tasks: expected 1 but got %d", len(tasks))
+	}
+
+	<-errChan
+	sch.Stop()
+	if counter != 1 {
+		t.Errorf("unexpected number of task executions: expected 1 but got %d", counter)
+	}
+}
+
 func TestBJ4(t *testing.T) {
 	t.Parallel()
 	var seq []int64

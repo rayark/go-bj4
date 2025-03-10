@@ -38,7 +38,7 @@ import (
 // Task defines the scheduler task.
 type Task struct {
 	TaskStatus
-	lock      sync.Mutex
+	lock      sync.RWMutex
 	bj4       *BJ4
 	function  TaskFunction
 	errorChan chan error
@@ -60,6 +60,12 @@ type TaskFunction func(task *Task) (result string, nextUpdate time.Time, err err
 func (task *Task) SetStatus(status string) {
 	task.Status = status
 	task.bj4.logger.OnTaskStatusUpdate(task)
+}
+
+func (task *Task) getTaskStatus() TaskStatus {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.TaskStatus
 }
 
 func (task *Task) run() {
