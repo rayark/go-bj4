@@ -32,6 +32,7 @@ package bj4
 
 import (
 	"errors"
+	"sync"
 	"time"
 )
 
@@ -56,7 +57,9 @@ type Config struct {
 // details.
 type BJ4 struct {
 	state          string
+	stateLock      sync.Mutex
 	tasks          map[string]*Task
+	tasksLock      sync.RWMutex
 	taskAdded      chan *Task
 	logger         Logger
 	minWaitTime    time.Duration
@@ -98,10 +101,10 @@ func New(config *Config) *BJ4 {
 
 // Start runs the scheduler.  Returns error if the scheduler has been started.
 func (bj4 *BJ4) Start() error {
-	if bj4.state != stateStopped {
+	if bj4.getState() != stateStopped {
 		return ErrNotStopped
 	}
-	bj4.state = stateStarted
+	bj4.setState(stateStarted)
 	bj4.logger.OnStart()
 	for {
 		bj4.run()
@@ -110,20 +113,32 @@ func (bj4 *BJ4) Start() error {
 			break
 		}
 	}
-	bj4.state = stateStopped
+	bj4.setState(stateStopped)
 	return nil
 }
 
 // Stop stops the scheduler.  Returns error if the scheduler has not been
 // started.
 func (bj4 *BJ4) Stop() error {
-	if bj4.state != stateStarted {
+	if bj4.getState() != stateStarted {
 		return ErrNotStarted
 	}
 	// block until wait() receives the stop signal
 	bj4.stopChan <- struct{}{}
 
 	return nil
+}
+
+func (bj4 *BJ4) setState(state string) {
+	bj4.stateLock.Lock()
+	defer bj4.stateLock.Unlock()
+	bj4.state = state
+}
+
+func (bj4 *BJ4) getState() string {
+	bj4.stateLock.Lock()
+	defer bj4.stateLock.Unlock()
+	return bj4.state
 }
 
 func (bj4 *BJ4) run() {
@@ -155,6 +170,8 @@ func (bj4 *BJ4) wait() bool {
 }
 
 func (bj4 *BJ4) enqueueTask(task *Task) {
+	bj4.tasksLock.Lock()
+	defer bj4.tasksLock.Unlock()
 	bj4.tasks[task.Name] = task
 }
 
@@ -192,6 +209,8 @@ func (bj4 *BJ4) SetScheduledTask(name string, fn TaskFunction, nextUpdate time.T
 		bj4:       bj4,
 		errorChan: make(chan error, 1),
 	}
+	task.lock.Lock()
+	defer task.lock.Unlock()
 	bj4.taskAdded <- task
 
 	bj4.logger.OnTaskAdded(task)
@@ -201,10 +220,12 @@ func (bj4 *BJ4) SetScheduledTask(name string, fn TaskFunction, nextUpdate time.T
 
 // GetTasks gets the tasks from the scheduler in slice format
 func (bj4 *BJ4) GetTasks() []TaskStatus {
+	bj4.tasksLock.RLock()
+	defer bj4.tasksLock.RUnlock()
 	taskStatus := make([]TaskStatus, len(bj4.tasks))
 	idx := 0
 	for _, task := range bj4.tasks {
-		taskStatus[idx] = task.TaskStatus
+		taskStatus[idx] = task.getTaskStatus()
 		idx++
 	}
 	return taskStatus
@@ -216,5 +237,7 @@ func (bj4 *BJ4) RemoveTask(name string) {
 }
 
 func (bj4 *BJ4) removeTask(name string) {
+	bj4.tasksLock.Lock()
+	defer bj4.tasksLock.Unlock()
 	delete(bj4.tasks, name)
 }

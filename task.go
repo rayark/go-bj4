@@ -31,12 +31,14 @@ package bj4
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
 // Task defines the scheduler task.
 type Task struct {
 	TaskStatus
+	lock      sync.RWMutex
 	bj4       *BJ4
 	function  TaskFunction
 	errorChan chan error
@@ -60,7 +62,15 @@ func (task *Task) SetStatus(status string) {
 	task.bj4.logger.OnTaskStatusUpdate(task)
 }
 
+func (task *Task) getTaskStatus() TaskStatus {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.TaskStatus
+}
+
 func (task *Task) run() {
+	task.lock.Lock()
+	defer task.lock.Unlock()
 	if task.Disabled {
 		ttl := task.bj4.taskTTL
 		now := time.Now()

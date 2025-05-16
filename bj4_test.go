@@ -30,7 +30,6 @@
 package bj4
 
 import (
-	"fmt"
 	"reflect"
 	"sync"
 	"testing"
@@ -42,90 +41,166 @@ func approxDuration(expected, actual time.Duration) bool {
 		actual > expected-5*time.Millisecond
 }
 
-func ExampleBJ4_SetTask() {
+func TestSetTask(t *testing.T) {
+	t.Parallel()
 	sch := New(&Config{})
-
-	errChan := sch.SetTask("hello", func(task *Task) (result string, nextUpdate time.Time, err error) {
-		fmt.Println("Hello World")
-		result = "done"
-		return
-	})
-
-	go sch.Start()
-
-	<-errChan // Wait for the task to complete
-
-	// Output: Hello World
-}
-
-func ExampleBJ4_SetScheduledTask() {
-	sch := New(&Config{})
-
-	errChan := sch.SetScheduledTask("hello", func(task *Task) (result string, nextUpdate time.Time, err error) {
-		fmt.Println("Hello World")
-		result = "done"
-		return
-	}, time.Now().Add(3*time.Second))
-
-	go sch.Start()
-
-	<-errChan // Wait for the task to complete
-
-	// Output: Hello World
-}
-
-func ExampleBJ4_SetScheduledTask_repeated() {
-	sch := New(&Config{})
-
 	counter := 0
 
-	sch.SetScheduledTask("hello", func(task *Task) (result string, nextUpdate time.Time, err error) {
+	errChan := sch.SetScheduledTask("hello", func(task *Task) (result string, nextUpdate time.Time, err error) {
 		counter++
-		fmt.Println("counter:", counter)
 		result = "done"
-		nextUpdate = time.Now().Add(2 * time.Second)
 		return
 	}, time.Now().Add(3*time.Second))
 
 	go sch.Start()
 
-	time.Sleep(10 * time.Second)
+	<-errChan
+	sch.Stop()
+	if counter != 1 {
+		t.Errorf("unexpected number of task executions: expected 1 but got %d", counter)
+	}
+}
 
-	// Output: counter: 1
-	// counter: 2
-	// counter: 3
-	// counter: 4
+func TestSetScheduledTask(t *testing.T) {
+	t.Parallel()
+	t.Run("one time", func(t *testing.T) {
+		t.Parallel()
+		sch := New(&Config{})
+		counter := 0
+
+		errChan := sch.SetScheduledTask("hello", func(task *Task) (result string, nextUpdate time.Time, err error) {
+			counter++
+			result = "done"
+			return
+		}, time.Now().Add(3*time.Second))
+
+		go sch.Start()
+
+		<-errChan
+		sch.Stop()
+		if counter != 1 {
+			t.Errorf("unexpected number of task executions: expected 1 but got %d", counter)
+		}
+	})
+
+	t.Run("repeated", func(t *testing.T) {
+		t.Parallel()
+		sch := New(&Config{})
+		counter := 0
+
+		sch.SetScheduledTask("hello", func(task *Task) (result string, nextUpdate time.Time, err error) {
+			counter++
+			result = "done"
+			nextUpdate = time.Now().Add(2 * time.Second)
+			return
+		}, time.Now().Add(3*time.Second))
+
+		go sch.Start()
+
+		time.Sleep(10 * time.Second)
+		sch.Stop()
+		if counter != 4 {
+			t.Errorf("unexpected number of task executions: expected 4 but got %d", counter)
+		}
+	})
+}
+
+func TestGetTasks(t *testing.T) {
+	t.Parallel()
+	sch := New(&Config{})
+	counter := 0
+
+	errChan := sch.SetScheduledTask("hello", func(task *Task) (result string, nextUpdate time.Time, err error) {
+		counter++
+		result = "done"
+		return
+	}, time.Now().Add(1*time.Second))
+
+	go sch.Start()
+
+	// wait for tasks to be enqueued
+	time.Sleep(100 * time.Millisecond)
+	tasks := sch.GetTasks()
+	if len(tasks) != 1 {
+		t.Errorf("unexpected number of pending tasks: expected 1 but got %d", len(tasks))
+	}
+
+	<-errChan
+	sch.Stop()
+	if counter != 1 {
+		t.Errorf("unexpected number of task executions: expected 1 but got %d", counter)
+	}
 }
 
 func TestBJ4(t *testing.T) {
+	t.Parallel()
 	var seq []int64
+	var seqLock sync.Mutex
 
 	sch := New(&Config{})
 	go sch.Start()
 
 	sch.SetScheduledTask("1", func(task *Task) (result string, nextUpdate time.Time, err error) {
+		seqLock.Lock()
+		defer seqLock.Unlock()
 		seq = append(seq, 1)
 		return
 	}, time.Now().Add(200*time.Millisecond))
 
 	sch.SetScheduledTask("2", func(task *Task) (result string, nextUpdate time.Time, err error) {
+		seqLock.Lock()
+		defer seqLock.Unlock()
 		seq = append(seq, 2)
 		return
 	}, time.Now().Add(100*time.Millisecond))
 
 	time.Sleep(500 * time.Millisecond)
 
+	seqLock.Lock()
+	defer seqLock.Unlock()
+	if !reflect.DeepEqual(seq, []int64{2, 1}) {
+		t.Error("wrong sequence:", seq)
+	}
+}
+
+func TestBJ4Logger(t *testing.T) {
+	t.Parallel()
+	var seq []int64
+	var seqLock sync.Mutex
+
+	sch := New(&Config{Logger: &LogrusLogger{}})
+	go sch.Start()
+
+	sch.SetScheduledTask("1", func(task *Task) (result string, nextUpdate time.Time, err error) {
+		seqLock.Lock()
+		defer seqLock.Unlock()
+		seq = append(seq, 1)
+		return
+	}, time.Now().Add(200*time.Millisecond))
+
+	sch.SetScheduledTask("2", func(task *Task) (result string, nextUpdate time.Time, err error) {
+		seqLock.Lock()
+		defer seqLock.Unlock()
+		seq = append(seq, 2)
+		return
+	}, time.Now().Add(100*time.Millisecond))
+
+	time.Sleep(500 * time.Millisecond)
+
+	seqLock.Lock()
+	defer seqLock.Unlock()
 	if !reflect.DeepEqual(seq, []int64{2, 1}) {
 		t.Error("wrong sequence:", seq)
 	}
 }
 
 func TestMinWaitTime(t *testing.T) {
+	t.Parallel()
 	wt := 500 * time.Millisecond
 	sch := New(&Config{MinWaitTime: wt})
 	s := time.Now()
 	sch.wait()
-	d := time.Now().Sub(s)
+	d := time.Since(s)
 
 	if !approxDuration(wt, d) {
 		t.Error("wrong duration. expected:", wt, ", actual:", d)
@@ -133,6 +208,7 @@ func TestMinWaitTime(t *testing.T) {
 }
 
 func TestWait(t *testing.T) {
+	t.Parallel()
 	wt := 1000 * time.Millisecond
 	tt := 500 * time.Millisecond
 	sch := New(&Config{MinWaitTime: wt})
@@ -143,7 +219,7 @@ func TestWait(t *testing.T) {
 
 	s := time.Now()
 	sch.wait()
-	d := time.Now().Sub(s)
+	d := time.Since(s)
 
 	if !approxDuration(tt, d) {
 		t.Error("wrong duration. expected:", tt, ", actual:", d)
@@ -151,7 +227,9 @@ func TestWait(t *testing.T) {
 }
 
 func TestStop(t *testing.T) {
+	t.Parallel()
 	var seq []int64
+	var seqLock sync.Mutex
 
 	sch := New(&Config{})
 	go sch.Start()
@@ -160,23 +238,30 @@ func TestStop(t *testing.T) {
 	})
 
 	sch.SetScheduledTask("1", func(task *Task) (result string, nextUpdate time.Time, err error) {
+		seqLock.Lock()
+		defer seqLock.Unlock()
 		seq = append(seq, 1)
 		return
 	}, time.Now().Add(300*time.Millisecond))
 
 	sch.SetScheduledTask("2", func(task *Task) (result string, nextUpdate time.Time, err error) {
+		seqLock.Lock()
+		defer seqLock.Unlock()
 		seq = append(seq, 2)
 		return
 	}, time.Now().Add(100*time.Millisecond))
 
 	time.Sleep(500 * time.Millisecond)
 
+	seqLock.Lock()
+	defer seqLock.Unlock()
 	if !reflect.DeepEqual(seq, []int64{2}) {
 		t.Error("wrong sequence:", seq)
 	}
 }
 
 func TestStopWaitsCurrentTaskDone(t *testing.T) {
+	t.Parallel()
 	var count int
 	var wg sync.WaitGroup
 
@@ -208,25 +293,35 @@ func TestStopWaitsCurrentTaskDone(t *testing.T) {
 }
 
 func TestRemove(t *testing.T) {
+	t.Parallel()
 	var seq []int64
+	var seqLock sync.Mutex
 
 	sch := New(&Config{})
 	go sch.Start()
 
 	sch.SetScheduledTask("1", func(task *Task) (result string, nextUpdate time.Time, err error) {
+		seqLock.Lock()
+		defer seqLock.Unlock()
 		seq = append(seq, 1)
 		return
 	}, time.Now().Add(300*time.Millisecond))
 
 	sch.SetScheduledTask("2", func(task *Task) (result string, nextUpdate time.Time, err error) {
+		seqLock.Lock()
+		defer seqLock.Unlock()
 		seq = append(seq, 2)
 		return
 	}, time.Now().Add(100*time.Millisecond))
 
+	// wait for tasks to be enqueued
+	time.Sleep(100 * time.Millisecond)
 	sch.RemoveTask("1")
 
 	time.Sleep(500 * time.Millisecond)
 
+	seqLock.Lock()
+	defer seqLock.Unlock()
 	if !reflect.DeepEqual(seq, []int64{2}) {
 		t.Error("wrong sequence:", seq)
 	}
