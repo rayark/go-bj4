@@ -5,6 +5,13 @@
 
 One-task-at-a-time task scheduling.
 
+## Migration Guide (V0 -> V1)
+Here are the key changes introduced in V1:
+* `TaskStatus` no longer holds the live fields of a task; it now serves as a read-only snapshot of the task's current state.
+* Getter and setter methods have been introduced for accessing and modifying task fields.
+* Task fields are no longer exported — please use the provided getters and setters instead.
+* The `SetStatus` method no longer triggers `logger.OnTaskStatusUpdate`; if logging is needed, please call it explicitly.
+
 ---
 
 * license: BSD3

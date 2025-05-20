@@ -40,21 +40,21 @@ func (lgr *BuiltinLogger) OnStart() {
 }
 
 func (lgr *BuiltinLogger) OnTaskAdded(task *Task) {
-	log.Printf("task \"%s\" added\n", task.Name)
+	log.Printf("task \"%s\" added\n", task.Name())
 }
 
 func (lgr *BuiltinLogger) OnTaskStart(task *Task) {
-	log.Printf("task \"%s\" starts running\n", task.Name)
+	log.Printf("task \"%s\" starts running\n", task.Name())
 }
 
 func (lgr *BuiltinLogger) OnTaskStatusUpdate(task *Task) {
-	log.Printf("task \"%s\" update: %s\n", task.Name, task.Status)
+	log.Printf("task \"%s\" update: %s\n", task.Name(), task.Status())
 }
 
 func (lgr *BuiltinLogger) OnTaskComplete(task *Task, result string) {
-	log.Printf("task \"%s\" complete: %s\n", task.Name, result)
+	log.Printf("task \"%s\" complete: %s\n", task.Name(), result)
 }
 
 func (lgr *BuiltinLogger) OnTaskError(task *Task, err error) {
-	log.Printf("task \"%s\" error: %s\n", task.Name, err.Error())
+	log.Printf("task \"%s\" error: %s\n", task.Name(), err.Error())
 }

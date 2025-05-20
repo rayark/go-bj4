@@ -172,18 +172,18 @@ func (bj4 *BJ4) wait() bool {
 func (bj4 *BJ4) enqueueTask(task *Task) {
 	bj4.tasksLock.Lock()
 	defer bj4.tasksLock.Unlock()
-	bj4.tasks[task.Name] = task
+	bj4.tasks[task.Name()] = task
 }
 
 func (bj4 *BJ4) getWaitTime() time.Duration {
 	wt := bj4.minWaitTime
 	now := time.Now()
 	for _, task := range bj4.tasks {
-		if task.NextUpdate.IsZero() {
+		if task.NextUpdate().IsZero() {
 			continue
 		}
 
-		t := task.NextUpdate.Sub(now)
+		t := task.NextUpdate().Sub(now)
 		if wt > t {
 			wt = t
 		}
@@ -200,17 +200,15 @@ func (bj4 *BJ4) SetTask(name string, fn TaskFunction) <-chan error {
 // SetScheduledTask sets the task running on specific time
 func (bj4 *BJ4) SetScheduledTask(name string, fn TaskFunction, nextUpdate time.Time) <-chan error {
 	task := &Task{
-		TaskStatus: TaskStatus{
-			Name:       name,
-			NextUpdate: nextUpdate,
-			Status:     "added",
+		taskStatus: taskStatus{
+			name:       name,
+			nextUpdate: nextUpdate,
+			status:     "added",
 		},
 		function:  fn,
 		bj4:       bj4,
 		errorChan: make(chan error, 1),
 	}
-	task.lock.Lock()
-	defer task.lock.Unlock()
 	bj4.taskAdded <- task
 
 	bj4.logger.OnTaskAdded(task)
@@ -225,7 +223,7 @@ func (bj4 *BJ4) GetTasks() []TaskStatus {
 	taskStatus := make([]TaskStatus, len(bj4.tasks))
 	idx := 0
 	for _, task := range bj4.tasks {
-		taskStatus[idx] = task.getTaskStatus()
+		taskStatus[idx] = task.TaskStatus()
 		idx++
 	}
 	return taskStatus

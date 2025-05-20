@@ -43,35 +43,35 @@ func (lgr *LogrusLogger) OnStart() {
 
 func (lgr *LogrusLogger) OnTaskAdded(task *Task) {
 	log.WithFields(log.Fields{
-		"task": task.TaskStatus,
+		"task": task.TaskStatus(),
 		"pool": "bj4",
-	}).Infof("adding task \"%s\"", task.Name)
+	}).Infof("adding task \"%s\"", task.Name())
 }
 
 func (lgr *LogrusLogger) OnTaskStart(task *Task) {
 	log.WithFields(log.Fields{
-		"task": task.TaskStatus,
+		"task": task.TaskStatus(),
 		"pool": "bj4",
-	}).Infof("task \"%s\" starts running", task.Name)
+	}).Infof("task \"%s\" starts running", task.Name())
 }
 
 func (lgr *LogrusLogger) OnTaskStatusUpdate(task *Task) {
 	log.WithFields(log.Fields{
-		"task": task.TaskStatus,
+		"task": task.TaskStatus(),
 		"pool": "bj4",
-	}).Infof("task \"%s\" update: %s", task.Name, task.Status)
+	}).Infof("task \"%s\" update: %s", task.Name(), task.Status())
 }
 
 func (lgr *LogrusLogger) OnTaskComplete(task *Task, result string) {
 	log.WithFields(log.Fields{
-		"task": task.TaskStatus,
+		"task": task.TaskStatus(),
 		"pool": "bj4",
-	}).Infof("task \"%s\" complete: %s", task.Name, result)
+	}).Infof("task \"%s\" complete: %s", task.Name(), result)
 }
 
 func (lgr *LogrusLogger) OnTaskError(task *Task, err error) {
 	log.WithFields(log.Fields{
-		"task": task.TaskStatus,
+		"task": task.TaskStatus(),
 		"pool": "bj4",
-	}).Errorf("task \"%s\" error: %s", task.Name, err.Error())
+	}).Errorf("task \"%s\" error: %s", task.Name(), err.Error())
 }
