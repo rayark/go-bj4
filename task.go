@@ -37,14 +37,24 @@ import (
 
 // Task defines the scheduler task.
 type Task struct {
-	TaskStatus
+	taskStatus
 	lock      sync.RWMutex
 	bj4       *BJ4
 	function  TaskFunction
 	errorChan chan error
 }
 
-// TaskStatus defines the status of a task.
+// taskStatus holds internal task state with restricted access.
+// Fields are private; access through Task's getter/setter methods only.
+type taskStatus struct {
+	name       string
+	status     string
+	nextUpdate time.Time
+	completed  time.Time
+	disabled   bool
+}
+
+// TaskStatus is a read-only snapshot of a task's state.
 type TaskStatus struct {
 	Name       string
 	Status     string
@@ -56,31 +66,100 @@ type TaskStatus struct {
 // TaskFunction defines the function of a task.
 type TaskFunction func(task *Task) (result string, nextUpdate time.Time, err error)
 
-// SetStatus sets the status of the running task.
-func (task *Task) SetStatus(status string) {
-	task.Status = status
-	task.bj4.logger.OnTaskStatusUpdate(task)
-}
-
-func (task *Task) getTaskStatus() TaskStatus {
+// Name gets the name of the running task.
+func (task *Task) Name() string {
 	task.lock.RLock()
 	defer task.lock.RUnlock()
-	return task.TaskStatus
+	return task.name
+}
+
+// SetName sets the name of the running task.
+func (task *Task) SetName(name string) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.name = name
+}
+
+// Status gets the status of the running task.
+func (task *Task) Status() string {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.status
+}
+
+// SetStatus sets the status of the running task.
+func (task *Task) SetStatus(status string) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.status = status
+}
+
+// NextUpdate gets the next update time of the running task.
+func (task *Task) NextUpdate() time.Time {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.nextUpdate
+}
+
+// SetNextUpdate sets the next update time of the running task.
+func (task *Task) SetNextUpdate(update time.Time) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.nextUpdate = update
+}
+
+// Completed gets the completed time of the running task.
+func (task *Task) Completed() time.Time {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.completed
+}
+
+// SetCompleted sets the completed time of the running task.
+func (task *Task) SetCompleted(completed time.Time) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.completed = completed
+}
+
+// Disabled gets the disable status of the running task.
+func (task *Task) Disabled() bool {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return task.disabled
+}
+
+// SetDisabled sets the disable status of the running task.
+func (task *Task) SetDisabled(disabled bool) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+	task.disabled = disabled
+}
+
+// TaskStatus gets the task status of the running task.
+func (task *Task) TaskStatus() TaskStatus {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+	return TaskStatus{
+		Name:       task.name,
+		Status:     task.status,
+		NextUpdate: task.nextUpdate,
+		Completed:  task.completed,
+		Disabled:   task.disabled,
+	}
 }
 
 func (task *Task) run() {
-	task.lock.Lock()
-	defer task.lock.Unlock()
-	if task.Disabled {
+	if task.Disabled() {
 		ttl := task.bj4.taskTTL
 		now := time.Now()
-		if ttl > 0 && now.Sub(task.Completed) >= ttl {
-			task.bj4.removeTask(task.Name)
+		if ttl > 0 && now.Sub(task.Completed()) >= ttl {
+			task.bj4.removeTask(task.Name())
 		}
 		return
 	}
 
-	if time.Since(task.NextUpdate) < 0 {
+	if time.Since(task.NextUpdate()) < 0 {
 		return
 	}
 
@@ -89,25 +168,25 @@ func (task *Task) run() {
 		<-task.errorChan
 	}
 
-	task.Status = "running"
+	task.SetStatus("running")
 	task.bj4.logger.OnTaskStart(task)
 
 	result, next, err := task.function(task)
 
-	task.Completed = time.Now()
+	task.SetCompleted(time.Now())
 	if next.IsZero() {
-		task.Disabled = true
-		task.NextUpdate = time.Time{}
+		task.SetDisabled(true)
+		task.SetNextUpdate(time.Time{})
 	} else {
-		task.NextUpdate = next
+		task.SetNextUpdate(next)
 	}
 
 	if err != nil {
-		task.Status = fmt.Sprintf("error: %s", err.Error())
+		task.SetStatus(fmt.Sprintf("error: %s", err.Error()))
 		task.bj4.logger.OnTaskError(task, err)
 		task.errorChan <- err
 	} else {
-		task.Status = fmt.Sprintf("completed: %s", result)
+		task.SetStatus(fmt.Sprintf("completed: %s", result))
 		task.bj4.logger.OnTaskComplete(task, result)
 		task.errorChan <- nil
 	}
